@@ -2148,3 +2148,673 @@ class C extends A,B {
 }
 ```
 
+# Java基础知识：this关键字
+
+在Java中，`this`关键字有很多种用法。在java中，这是一个引用当前对象的引用变量。
+
+java `this`关键字的用法如下：
+
+1. `this` 关键字可用来引用当前类的实例变量。
+2. `this` 关键字可用于调用当前类方法（隐式）。
+3. `this()` 可以用来调用当前类的构造函数。
+4. `this` 关键字可作为调用方法中的参数传递。
+5. `this` 关键字可作为参数在构造函数调用中传递。
+6. `this` 关键字可用于从方法返回当前类的实例。
+
+![img](https://img-service.csdnimg.cn/img_convert/4317f1e21e5f992fb3798c1a5184d08e.png)
+
+## 1. this：引用当前类的实例变量
+
+`this` 关键字可以用来引用当前类的实例变量。如果实例变量和参数直接存在歧义，则 `this` 关键字可用于明确地指定类变量以解决歧义问题。
+
+**了解没有 this 关键字的问题**
+
+下面先来理解一个不使用 `this` 关键字的示例：
+
+```java
+class Student {
+    int rollno;
+    String name;
+    float fee;
+    
+    Student(int rollno, String name, float fee) {
+        rollno = rollno;
+        name = name;
+        fee = fee;
+    }
+    
+    void display() {
+        System.out.println(rollno + " " + name + " " + fee);
+    }
+}
+
+class TestThis1 {
+    public static void main(String[] args) {
+        Student s1 = new Student(111,"ankit",5000f);
+        Student s2 = new Student(112,"sumit",6000f);
+        s1.display();
+        s2.display();
+    }
+}
+```
+
+执行上面代码输出结果如下：
+
+```
+0 null 0.0
+0 null 0.0
+```
+
+在上面的例子中，参数（形式参数）和实例变量（`rollno` 和 `name`）是相同的。所以要使用 `this` 关键字来区分局部变量和实例变量。
+
+**使用 this 关键字解决了上面的问题**
+
+```java
+class Student {
+    int rollno;
+    String name;
+    float fee;
+    
+    Student(int rollno,String name,float fee) {
+        this.rollno = rollno;
+        this.name = name;
+        this.fee = fee;
+    }
+    
+    void display() {
+        System.out.println(rollno + " " + name + " " + fee);
+    }
+}
+
+class TestThis2 {
+    public static void main(String[] args) {
+        Student s1 = new Student(111,"ankit",5000f);
+        Student s2 = new Student(112,"sumit",6000f);
+        s1.display();
+        s2.display();
+    }
+}
+```
+
+执行上面代码输出结果如下：
+
+```
+111 ankit 5000
+112 sumit 6000
+```
+
+如果局部变量（形式参数）和实例变量不同，这不需要像下面的程序一样使用 `this` 关键字：
+
+**不需要 this 关键字的程序示例**
+
+```java
+class Student {
+    int rollno;
+    String name;
+    float fee;
+    
+    Student(int r,String n,float f) {
+        rollno = r;
+        name = n;
+        fee = f;
+    }
+    
+    void display() {
+        System.out.println(rollno + " " + name + " " + fee);
+    }
+}
+
+class TestThis2 {
+    public static void main(String[] args) {
+        Student s1 = new Student(111,"ankit",5000f);
+        Student s2 = new Student(112,"sumit",6000f);
+        s1.display();
+        s2.display();
+    }
+}
+```
+
+执行上面代码输出结果如下：
+
+```
+111 ankit 5000
+112 sumit 6000
+```
+
+> 对变量使用有意义的名称是一种好的编程习惯。所以使用相同名称的实例变量和参数，并且总是使用 `this` 关键字。
+
+## 2. this：调用当前类方法
+
+可以使用 `this` 关键字调用当前类的方法。如果不使用 `this` 关键字，编译器会在调用方法时自动添加此 `this` 关键字。
+
+![img](https://img-service.csdnimg.cn/img_convert/532c4ed68cb0482fadd1f728079fe537.png)
+
+## 3. this()：调用当前类的构造函数
+
+`this()` 构造函数调用可以用来调用当前类的构造函数。它用于重用构造函数。换句话说，它用于构造函数链接。
+
+**从参数化构造函数调用默认构造函数：**
+
+```java
+class A {
+    A() {
+        System.out.println("hello a");
+    }
+    
+    A(int x) {
+        this();
+        System.out.println(x);
+    }
+}
+
+class TestThis5 {
+    public static void main(String[] args) {
+        A a = new A(10);
+    }
+}
+```
+
+执行上面代码输出结果如下：
+
+```
+hello a
+10
+```
+
+**从默认构造函数调用参数化构造函数：**
+
+```java
+class A {
+    A() {
+        this(5);
+        System.out.println("hello a");
+    }
+    
+    A(int x) {
+        System.out.println(x);
+    }
+}
+
+class TestThis6 {
+    public static void main(String[] args) {
+        A a = new A();
+    }
+}
+```
+
+执行上面代码输出结果如下：
+
+```
+5
+hello a
+```
+
+### 使用构造函数调用
+
+`this()` 构造函数调用用于从构造函数重用构造函数。它维护构造函数之间的链，即它用于构造函数链接。看看下面给出的示例，显示 `this` 关键字的实际使用。
+
+```java
+class Student {
+    int rollno;
+    String name, course;
+    float fee;
+    
+    Student(int rollno,String name,String course) {
+        this.rollno = rollno;
+        this.name = name;
+        this.course = course;
+    }
+    
+    Student(int rollno,String name,String course,float fee) {
+        this(rollno,name,course);
+        this.fee = fee;
+    }
+    
+    void display() {
+        System.out.println(rollno + " " + name + " " + course + " " + fee);
+    }
+}
+
+class TestThis7 {
+    public static void main(String[] args) {
+        Student s1 = new Student(111,"ankit","java");
+        Student s2 = new Student(112,"sumit","java",6000f);
+        s1.display();
+        s2.display();
+    }
+}
+```
+
+执行上面代码输出结果如下：
+
+```
+111 ankit java null
+112 sumit java 6000
+```
+
+>注意：调用 `this()` 必须是构造函数中的第一个语句。
+
+下面示例为不把 `this()` 语句放在第一行，因此编译不通过。
+
+```java
+class Student {
+    int rollno;
+    String name, course;
+    float fee;
+    
+    Student(int rollno,String name,String course) {
+        this.rollno = rollno;
+        this.name = name;
+        this.course = course;
+    }
+    
+    Student(int rollno,String name,String course,float fee) {
+        this.fee = fee;
+        this(rollno,name,course);//C.T.Error
+    }
+    
+    void display() {
+        System.out.println(rollno + " " + name + " " + course + " " + fee);
+    }
+}
+
+class TestThis7 {
+    public static void main(String[] args) {
+        Student s1 = new Student(111,"ankit","java");
+        Student s2 = new Student(112,"sumit","java",6000f);
+        s1.display();
+        s2.display();
+    }
+}
+```
+
+执行上面代码输出结果如下：
+
+```
+Compile Time Error: Call to this must be first statement in constructor
+```
+
+## 4. this：作为参数传递给方法
+
+`this` 关键字也可以作为方法中的参数传递。它主要用于事件处理。看看下面的一个例子：
+
+```java
+class S2 {
+    void m(S2 obj) {
+        System.out.println("method is invoked");
+    }
+    
+    void p() {
+        m(this);
+    }
+    
+    public static void main(String[] args) {
+        S2 s1 = new S2();
+        s1.p();
+    }
+}
+```
+
+执行上面代码输出结果如下：
+
+```
+method is invoked
+```
+
+**这个应用程序可以作为参数传递：**
+
+在事件处理（或）的情况下，必须提供一个类的引用到另一个。它用于在多个方法中重用一个对象。
+
+### this：在构造函数调用中作为参数传递
+
+也可以在构造函数中传递 `this` 关键字。如果必须在多个类中使用一个对象，可以使用这种方式。看看下面的一个例子：
+
+```java
+class B {
+ 	A4 obj;
+    
+    B(A4 obj) {
+        this.obj = obj;
+    }
+    
+    void display() {
+        System.out.println(obj.data);//using data member of A4 class
+    }
+}
+
+class A4 {
+    int data = 10;
+    
+    A4() {
+        B b = new B(this);
+        b.display();
+    }
+    
+    public static void main(String[] args) {
+        A4 a = new A4();
+    }
+}
+```
+
+执行上面代码输出结果如下：
+
+```
+10
+```
+
+## 6. this 关键字用来返回当前类的实例
+
+可以从方法中 `this` 关键字作为语句返回。在这种情况下，方法的返回类型必须是类类型（非原始）。看看下面的一个例子：
+
+**作为语句返回的语法**
+
+```java
+return_type method_name() {
+    return this;
+}
+```
+
+**从方法中返回为语句的 this 关键字的示例**
+
+```java
+class A {
+    A getA() {
+        return this;
+    }
+    
+    void msg() {
+        System.out.println("Hello java");
+    }
+}
+
+class Test1 {
+    public static void main(String[] args) {
+        new A().getA().msg();
+    }
+}
+```
+
+执行上面代码输出结果如下：
+
+```
+Hello java
+```
+
+**验证 this 关键字**
+
+现在来验证 `this` 关键字引用当前类的实例变量。在这个程序中将打印参考变量，这两个变量的输出是相同的。
+
+```java
+class A5 {
+    void m() {
+        System.out.println(this);//print the reference ID
+    }
+    
+    public static void main(String[] args) {
+        A5 obj = new A5();
+        System.out.println(obj); //pirnt the reference ID
+        obj.m();
+    }
+}
+```
+
+执行上面代码输出结果如下：
+
+```
+A5@22b3ea59
+A5@22b3ea59
+```
+
+# Java基础知识：Java抽象
+
+在Java中用 `abstract` 关键字声明的类称为抽象类。它可以有抽象和非抽象方法（带主体的方法）。
+
+在学习java抽象类之前，先来了解java中的抽象。
+
+## Java 中的抽象
+
+抽象是隐藏实现细节并仅向用户显示功能的过程。
+
+另一种方式，它只向用户显示重要的事情，并隐藏内部详细信息，例如：发送信息，只需要输入文本并发送消息。您也不需要知道有关邮件传递的内部处理过程。
+
+抽象可以让你专注于对象做什么（实现的功能），而不是它如何做。
+
+### 实现抽象的方法
+
+在 java 中由两种实现抽象的方法，它们分别是：
+
+1. 抽象类（部分）
+2. 接口（完全）
+
+## 1.Java 中的抽象类
+
+使用 `abstract` 关键字声明的类被称为抽象类。需要扩展和实现它的方法。它不能被实例化。
+
+**抽象类示例**
+
+```java
+abstract class A{}
+```
+
+**抽象方法**
+
+一个被声明为 `abstract` 而没有实现的方法被称为抽象方法。
+
+**抽象方法示例**
+
+```java
+abstract void printStatus();
+```
+
+**具有抽象方法的抽象类的示例**
+
+在这个例子中，`Bike` 是一个抽象类，只包含一个抽象方法 `run()` 。它由 `Honda` 类提供实现。
+
+``` java
+abstract class Bike {
+    abstract void run();
+}
+
+class Honda4 extends Bike {
+    void run() {
+        System.out.println("running safely..");
+    }
+    
+    public static void main(String[] args) {
+        Bike obj = new Honda4();
+        obj.run();
+    }
+}
+```
+
+上面示例中的执行代码如下：
+
+```
+running safely..
+```
+
+### 理解抽象类的真实应用场景
+
+在这个例子中，`Shape` 是一个抽象类，它的实现分别由 `Rectangle` 和 `Circle` 类提供。大多数情况下，我们不知道实现类（即对最终用户隐藏），实现类的对象由工厂方法提供。
+
+**工厂方法**是用于返回类的实例的方法。稍后我们将在下一节中了解和学习**工厂方法**。
+
+在这个例子中，创建 `Rectangle` 类的实例，`Rectangle` 类的 `draw()` 方法将被调用。创建一个类文件：`TestAbstraction1.java`，它的代码如下所示：
+
+```java
+abstract class Shape {
+    abstract void draw();
+}
+
+class Rectangle extends Shape {
+    void draw() {
+        System.out.println("drawing rectangle");
+    }
+}
+
+class Circle1 extends Shape {
+    void draw() {
+        System.out.println("drawing circle");
+    }
+}
+
+class TestAbstraction1 {
+    public static void main(String[] args) {
+        Shape s = new Circle1();
+        s.draw();
+    }
+}
+```
+
+上面代码执行结果如下：
+
+```
+drawing circle
+```
+
+**在java中抽象类的另一个例子**
+
+创建一个Java文件：`TestBank.java`，代码如下所示：
+
+```java
+abstract class Bank {
+    abstract int getRateOfInterest();
+}
+
+class SBI extends Bank {
+    int getRateOfInterest() {
+        return 7;
+    }
+}
+
+class PNB extends Bank {
+    int getRateOfInterest() {
+        return 8;
+    }
+}
+
+class TestBank {
+    public static void main(String[] args) {
+        Bank b;
+        b = new SBI();
+        System.out.println("Rate of Interest is: " + b.getRateOfInterest() + "%");
+        b = new PNB();
+        System.out.println("Rate of Interest is: " + b.getRateOfInterest() + "%");
+    }
+}
+```
+
+上面代码执行结果如下：
+
+```
+Rate of Interest is: 7%
+Rate of Interest is: 8%
+```
+
+**具有构造函数，数据成员，方法等的抽象类**
+
+抽象类可以有数据成员，抽象方法，方法体，构造函数甚至 `main()` 方法。创建一个Java文件：`TestAbstraction2.java`，代码如下所示：
+
+```java
+abstract class Bike {
+    Bike() {
+        System.out.println("bike is created");
+    }
+    
+    abstract void run();
+    
+    void changeGear() {
+        System.out.println("gear changed");
+    }
+}
+
+class Honda extends Bike {
+    void run() {
+        System.out.println("running safely..");
+    }
+}
+
+class TestAbstraction2 {
+	public static void main(String[] args) {
+        Bike obj = new Honda();
+        obj.run();
+        obj.changeGear();
+    }
+}
+```
+
+上面代码执行结果如下：
+
+```
+bike is created
+running safely
+gear changed
+```
+
+> 规则：如果在类中有任何抽象方法，那个类必须声明为抽象的。
+
+```java
+class Bike12 {
+    abstract void run();
+}
+```
+
+上面的 `Bike12` 是无法编译通过的。
+
+> 规则：如果你扩展任何具有抽象方法的抽象类，必须提供方法的实现或使这个类抽象化。
+
+### 抽象类的另一个真实场景
+
+抽象类也可以用于提供接口的一些实现。在这种情况下，终端用户可能不会被强制覆盖接口的所有方法。
+
+```java
+interface A {
+    void a();
+    
+    void b();
+    
+    void c();
+    
+    void d();
+}
+
+abstract class B implements A {
+    public void c() {
+        System.out.println("I am c");
+    }
+}
+
+class M extends B {
+    public void a() {
+        System.out.println("I am a");
+    }
+    
+    public void b() {
+        System.out.println("I am b");
+    }
+    
+    public void d() {
+        System.out.println("I am d");
+    }
+}
+
+class Test5 {
+    public static void main(String[] args) {
+        A a = new M();
+        a.a();
+        a.b();
+        a.c();
+        a.d();
+    }
+}
+```
+
+上面代码执行结果如下：
+
+```
+I am a
+I am b
+I am c
+I am d
+```
+
