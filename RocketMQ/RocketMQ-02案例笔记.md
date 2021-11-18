@@ -1219,8 +1219,296 @@ public class CancelOrderConsumer implements RocketMQListener<MessageExt> {
 @RocketMQMessageListener(topic = "${mq.order.topic}", consumerGroup = "${mq.order.consumer.group.name}", messageModel = messageModel.BROADCASTING)
 public class CancelOrderConsumer implements RocketMQListener<MessageExt> {
     @Override
+    public void onMessage(MessageExt message) {
+        try {
+            //解析消息内容
+            String body = new String(message.getBody(), "UTF-8");
+            MQEntity mqEntity = JSON.ParseObject(body, MQEntity.class);
+            //查询优惠券信息
+            if(mqEntity.getCouponId != null) {
+                TradeCoupon coupon = couponMapper.selectByPrimaryKey(mqEntity.getCouponId());
+                //更改优惠券状态
+                coupon.setUsedTime(null);
+                coupon.setIsUsed(ShopCode.SHOP_COUPON_UNUSED.getCode());
+                coupon.setOrderId(null);
+                couponMapper.updateByPrimaryKey(coupon);
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+}
+```
+
+#### 3）回退用户余额
+
+```java
+@Component
+@RocketMQMessageListener(topic = "${mq.order.topic}", consumerGroup = "${mq.order.consumer.group.name}", messageModel = messageModel.BROADCASTING)
+public class CancelOrderConsumer implements RocketMQListener<MessageExt> {
+    @Override
+    public void onMessage(MessageExt messageExt) {
+        try {
+            String body = new String(messageExt.getBody(), "UTF-8");
+            MQEntity mqEntity = JSON.ParseObject(body, MQEntity.class);
+            if(mqEntity.getUserMoney() != null && mqEntity.getUserMoney().compareTo(BigDecimal.ZERO) > 0) {
+                //调用业务层 进行余额修改
+                TradeUserMoneyLog userMoneyLog = new TradeUserMoneyLog();
+                userMoneyLog.setUseMoney(mqEntity.getUserMoney());
+                userMoneyLog.setMoneyLogType(ShopCode.SHOP_USER_MONEY_REFUND.getCode());
+                userMoneyLog.setUserId(mqEntity.getUserId());
+                userMoneyLog.setOrderId(mqEntity.getOrderId());
+                userService.updateMoneyPaid(userMoneyLog);
+            }
+        } catch (Exception e) {
+            e.printStackTrade();
+        }
+    }
+}
+```
+
+#### 4）取消订单
+
+```java
+@Component
+@RocketMQMessageListener(topic = "${mq.order.topic}", consumerGroup = "${mq.order.consumer.group.name}", messageModel = messageModel.BROADCASTING)
+public class CancelOrderConsumer implements RocketMQListener<MessageExt> {
+    @Override
+    public void onMessage(MessageExt messageExt) {
+        try {
+            //解析消息内容
+            String body = new String(messageExt.getBody(), "UTF-8");
+            MQEntity mqEntity = JSON.ParseObject(body, MQEntity.class);
+            if(mqEntity.getOrderId() != null) {
+                //查询订单
+                TradeOrder order = order.selectByPrimaryKey(mqEntity.getOrderId);
+                //更新订单状态为取消
+                order.setOrderStatus(ShopCode.SHOP_ORDER_MESSAGE_STATUS_CANCEL.getCode());
+                orderMapper.updateByPrimaryKey(order);
+       		}
+        } catch (Exception e) {
+            e.printStackTrade();
+        }
+    }
+}
+```
+
+# 5.支付业务
+
+## 5.1 创建支付订单
+
+* 接口 IpayService
+
+```java
+public interface IPayService {
+    
+    Result createPayment(TradePay tradePay);
+    
+    Result callbackPayment(TradePay tradePay);
+    
+}
+```
+
+* 接口实现 IpayServiceImpl
+
+```java
+@Component
+@Service(interfaceClass = IPayService.class)
+public class PayServiceImpl implements IPayService {
+    
+    @Autowired
+    private TradePayMapper tradePayMapper;
+    
+    @Autowired
+    private IDWorker idWorker;
+    
+    @Override
+    public Result createPayment(TradePay tradePay) {
+        if(tradePay == null || tradePay.getOrderId() == null) {
+            CastException.cast(ShopCode.SHOP_REQUEST_PARAMETER_VALID);
+        }
+        //判断订单支付状态
+        TradePayExample example = new TradePayExample();
+        TradePayExample.Criteria criteria = example.createCriteria();
+        criteria.andOrderIdEqualTo(tradePay.getOrderId());
+        criteria.andIsPaidEqualTo(ShopCode.SHOP_PAYMENT_IS_PAID.getCode());
+        int r = tradePayMapper.countByExample(example);
+        if(r > 0) {
+            CastException.cast(ShopCode.SHOP_PAYMENT_IS_PAID);
+        }
+        //设置订单的状态为 未支付
+        tradePay.setIsPaid(ShopCode.SHOP_ORDER_PAY_STATUS_NO_PAY.getCode());
+        //保存支付订单
+        tradePay.setPayId(idWorker.nextId());
+        tradePayMapper.insert(tradePay);
+        return new Result(ShopCode.SHOP_SUCCESS.getSuccess(),ShopCode.SHOP_SUCCESS.getMessage());
+    }
+}
+```
+
+
+
+## 5.2 支付回调
+
+### 5.2.1 代码实现
+
+* 实现 callbackPayment 方法
+
+```java
+@Autowired
+private TradeMqProducerTempMapper tradeMqProducerTempMapper;
+
+@Override
+public Result callbackPayment(TradePay tradePay) {
+    
+    //判断用户支付状态
+    if(tradePay.getIsPaid().intValue() != ShopCode.SHOP_ORDER_PAY_STATUS_IS_PAY.getCode().intValue()) {
+		        CastException.cast(ShopCdoe.SHOP_PAYMENT_PAY_ERROR);
+        return new Result(ShopCode.SHOP_FAIL.getSuccess(), ShopCode.SHOP_FAIL.getMessage());
+    } else {
+        //更新支付订单状态为 已支付
+		Long payId = tradePay.getPayId();
+        //判断支付订单是否存在
+        TradePay pay = tradePayMapper.selectByPrimaryKey(payId);
+        if(pay == null) {
+            CastException.cast(ShopCode.SHOP_PAYMENT_NOT_FOUND);
+        }
+        pay.setIsPaid(ShopCode.SHOP_ORDER_PAY_STATUS_IS_PAY.getCode());
+        int r = tradePayMapper.updateByPrimaryKey(pay);
+        if(r == 1) {
+            //创建支付成功的消息
+			TradeMqProducerTemp tradeMqProducerTemp = new TradeMqProducerTemp();
+            tradeMqProducerTemp.setId(String.valueOf(idWorker.nextId()));
+            tradeMqProducerTemp.setGroupName(groupName);
+            tradeMqProducerTemp.setMsgTopic(topic);
+            tradeMqProducerTemp.setMsgTag(tag);
+            tradeMqProducerTemp.setMsgKey(String.valueOf(tradePay.getPayId()));
+            tradeMqProducerTemp.setMsgBody(JSON.toJSONString(tradePay));
+            tradeMqProducerTemp.setCreateTime(new Date());
+            //将消息持久化数据库
+			mqProducerTempMapper.insert(tradeMqProducerTemp);
+            
+            //在线程池中进行处理
+            /**
+            //发送消息到MQ
+			SendResult sendResult = sendMessage(topic, tag, String.valueOf(tradePay.getPayId()), tradeMqProducerTemp.getMsgBody());
+            //等待发送结果，如果MQ接受到消息，删除发送成功的消息
+            if(sendResult != null && sendResult.getSendStatus().equals(SendStatus.SEND_OK)) {
+                mqProducerTempMapper.deleteByPrimaryKey(tradeMqProducerTemp.getId());
+            }**/
+        }
+        return new Result(ShopCode.SHOP_SUCCESS.getSuccess(), ShopCode.SHOP_SUCCESS.getMessage());
+    }
+}
+```
+
+* 发送支付成功消息
+
+```java
+@Autowired
+private RocketMQTemplate rocketMQTemplate;
+
+private SendResult sendMessage(String topic, String tag, String key, String body) throw Exception {
+    if(StringUtils.isEmpty(topic)) {
+        CastException.cast(ShopCode.SHOP_MQ_TOPIC_IS_EMPTY);
+    }
+    if(StringUtils.isEmpty(body)) {
+        CastException.cast(ShopCode.SHOP_MQ_MESSAGE_BODY_IS_EMPTY);
+    }
+    
+    Message message = new Message(topic, tag, key, body.getBytes());
+    SendResult sendResult = rocketMQTemplate.getProducer().send(message);
+    return sendResult;
+
+```
+
+#### 线程池优化消息发送逻辑
+
+* 创建线程池对象
+
+```java
+@Bean
+public ThreadPoolTaskExecutor getThreadPool() {
+    ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
+    executor.setCorePoolSize(4);
+    executor.setMaxPoolSize(8);
+    executor.setQueueCapacity(100);
+    executor.setKeepAliveSeconds(60);
+    executor.setThreadNameOrefix("Pool-A");
+    executor.setRejectedExecutionHandler(new ThreadPoolExecutor.callerRunsPolicy());
+    executor.initialize();
+    return executor;
+}
+```
+
+* 使用线程池
+
+```java
+@AutoWired
+private ThreadPoolTaskExecutor threadPoolTaskExecutor;
+
+threadPoolTaskExecutor.submit(new Runnable() {
+   	@Override
+    public void run() {
+        //发送消息到MQ
+        SendResult result = null;
+        try {
+            SendResult sendResult = sendMessage(topic, tag, String.valueOf(tradePay.getPayId()), tradeMqProducerTemp.getMsgBody());
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        //等待发送结果，如果MQ接受到消息，删除发送成功的消息
+        if(sendResult != null && sendResult.getSendStatus().equals(SendStatus.SEND_OK)) {
+            mqProducerTempMapper.deleteByPrimaryKey(tradeMqProducerTemp.getId());
+        }
+    }
+});
+```
+
+### 5.2.2 处理消息
+
+支付成功后，支付服务 payService 发送 MQ 消息，订单服务、用户服务、日志服务需要订阅消息进行处理
+
+1. 订单服务修改订单状态为已支付
+2. 日志服务记录支付日志
+3. 用户服务负责给用户增加积分
+
+以下用订单服务为例说明消息的处理情况
+
+#### 1）配置RocketMQ属性值
+
+```properties
+mq.pay.topic=payTopic
+mq.pay.consumer.group.name=pay_payTopic_group
+```
+
+#### 2）消费消息
+
+* 在订单服务中，配置公共的消息处理类
+
+```java
+@Component
+@RocketMQMessageListener(topic = "${mq.pay.topic}", consumerGroup = "${mq.pay.group.name}", messageModel = MessageModel.BROADCASTING)
+public class PaymentListener implements RocketMQListener<MessageExt> {
+    @Autowired
+    private TradeOrderMapper orderMapper;
+    
+    @Override
     public void onMessage(MessageExt messageExt) {
         
+        try {
+            //解析消息内容
+			String body = new String(messageExt.getBody(), "UTF-8");
+            TradePay tradePay = JSON.parseObject(body, TradePay.class);
+            //根据订单ID查询订单对象
+			TradeOrder tradeOrder = orderMapper.selectByPrimaryKey(tradePay.getOrderId());
+            //更改订单支付状态为 已支付
+			tradeOrder.setPayStatus(ShopCode.SHOP_ORDER_PAY_STATUS_IS_PAY.getCode());
+            //更新订单数据到数据库
+            orderMapper.updateByPrimaryKey(tradeOrder);
+        } catch (Exception e) {
+            e.printStackTrade();
+        }
     }
 }
 ```
